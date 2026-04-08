@@ -17,12 +17,17 @@ services:
       timeout: 5s
       retries: 5
 
-  # Cache & Task Management (Celery/BullMQ backend)
+  # Cache & Task Management
   redis:
     image: redis:7-alpine
     container_name: matcher_cache
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   # Message Broker for Service A -> B -> C communication
   rabbitmq:
@@ -30,10 +35,15 @@ services:
     container_name: matcher_broker
     ports:
       - "5672:5672"   # RabbitMQ API
-      - "15672:15672" # Management UI (User: guest / Pass: guest)
+      - "15672:15672" # Management UI
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Object Storage (S3 Replacement)
   minio:
@@ -48,19 +58,28 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-  # Automated Bucket Creator (Runs once and exits)
+  # Automated Bucket Creator
   createbuckets:
     image: minio/mc
+    container_name: matcher_bucket_init
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      until (/usr/bin/mc alias set local_minio http://minio:9000 minioadmin minioadmin) do echo 'Waiting for MinIO...' && sleep 1; done;
+      /usr/bin/mc alias set local_minio http://minio:9000 minioadmin minioadmin;
       /usr/bin/mc mb --ignore-existing local_minio/resumes;
-      /usr/bin/mc policy set public local_minio/resumes;
+      /usr/bin/mc anonymous set download local_minio/resumes;
       exit 0;
       "
+
+  # --- NestJS Applications ---
 
   job-scraper:
     build:
@@ -69,13 +88,17 @@ services:
     container_name: job-scraper
     ports:
       - "3001:3001"
+    environment:
+      - DATABASE_URL=postgresql://dev_user:dev_password@postgres:5432/matcher_db
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   matcher:
     build:
@@ -84,13 +107,20 @@ services:
     container_name: matcher
     ports:
       - "3002:3002"
+    environment:
+      - DATABASE_URL=postgresql://dev_user:dev_password@postgres:5432/matcher_db
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
-      redis:
-        condition: service_started
+        condition: service_healthy
+      minio:
+        condition: service_healthy
 
   optimizer:
     build:
@@ -99,13 +129,17 @@ services:
     container_name: optimizer
     ports:
       - "3003:3003"
+    environment:
+      - DATABASE_URL=postgresql://dev_user:dev_password@postgres:5432/matcher_db
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - REDIS_URL=redis://redis:6379
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
-        condition: service_started
+        condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   pgdata:
