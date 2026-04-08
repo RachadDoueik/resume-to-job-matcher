@@ -1,0 +1,112 @@
+services:
+  # Database: Persistent storage for users, jobs, and scores
+  postgres:
+    image: postgres:16-alpine
+    container_name: matcher_db
+    environment:
+      POSTGRES_USER: dev_user
+      POSTGRES_PASSWORD: dev_password
+      POSTGRES_DB: matcher_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev_user -d matcher_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Cache & Task Management (Celery/BullMQ backend)
+  redis:
+    image: redis:7-alpine
+    container_name: matcher_cache
+    ports:
+      - "6379:6379"
+
+  # Message Broker for Service A -> B -> C communication
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: matcher_broker
+    ports:
+      - "5672:5672"   # RabbitMQ API
+      - "15672:15672" # Management UI (User: guest / Pass: guest)
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  # Object Storage (S3 Replacement)
+  minio:
+    image: minio/minio
+    container_name: matcher_storage
+    ports:
+      - "9000:9000" # API Port
+      - "9001:9001" # Console/UI Port
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - miniodata:/data
+
+  # Automated Bucket Creator (Runs once and exits)
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set local_minio http://minio:9000 minioadmin minioadmin) do echo 'Waiting for MinIO...' && sleep 1; done;
+      /usr/bin/mc mb --ignore-existing local_minio/resumes;
+      /usr/bin/mc policy set public local_minio/resumes;
+      exit 0;
+      "
+
+  job-scraper:
+    build:
+      context: .
+      dockerfile: apps/job-scraper/Dockerfile
+    container_name: job-scraper
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  matcher:
+    build:
+      context: .
+      dockerfile: apps/matcher/Dockerfile
+    container_name: matcher
+    ports:
+      - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  optimizer:
+    build:
+      context: .
+      dockerfile: apps/optimizer/Dockerfile
+    container_name: optimizer
+    ports:
+      - "3003:3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+      redis:
+        condition: service_started
+
+volumes:
+  pgdata:
+  miniodata:
