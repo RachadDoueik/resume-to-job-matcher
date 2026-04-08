@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/resume-to-job-matcher/src",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "webpack": true,
+    "tsConfigPath": "apps/resume-to-job-matcher/tsconfig.app.json"
+  },
+  "monorepo": true,
+  "root": "apps/resume-to-job-matcher",
+  "projects": {
+    "job-scraper": {
+      "type": "application",
+      "root": "apps/job-scraper",
+      "entryFile": "main",
+      "sourceRoot": "apps/job-scraper/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/job-scraper/tsconfig.app.json"
+      }
+    },
+    "matcher": {
+      "type": "application",
+      "root": "apps/matcher",
+      "entryFile": "main",
+      "sourceRoot": "apps/matcher/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/matcher/tsconfig.app.json"
+      }
+    },
+    "optimizer": {
+      "type": "application",
+      "root": "apps/optimizer",
+      "entryFile": "main",
+      "sourceRoot": "apps/optimizer/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/optimizer/tsconfig.app.json"
+      }
+    },
+    "resume-to-job-matcher": {
+      "type": "application",
+      "root": "apps/resume-to-job-matcher",
+      "entryFile": "main",
+      "sourceRoot": "apps/resume-to-job-matcher/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/resume-to-job-matcher/tsconfig.app.json"
+      }
+    }
+  }
+}
