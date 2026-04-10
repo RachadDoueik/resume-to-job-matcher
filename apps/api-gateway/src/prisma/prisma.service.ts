@@ -3,6 +3,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
@@ -11,8 +12,12 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  constructor() {
-    const connectionString = process.env.DATABASE_URL || process.env.DATABASE_URL_DOCKER
+  constructor(private readonly configService: ConfigService) {
+    const connectionString =
+      configService.get<string>('DATABASE_URL') ||
+      configService.get<string>('DATABASE_URL_DOCKER') ||
+      'postgresql://dev_user:dev_password@localhost:5432/matcher_db?schema=public';
+
     super({
       adapter: new PrismaPg({ connectionString }),
     });
