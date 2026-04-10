@@ -4,15 +4,15 @@ services:
     image: postgres:16-alpine
     container_name: matcher_db
     environment:
-      POSTGRES_USER: dev_user
-      POSTGRES_PASSWORD: dev_password
-      POSTGRES_DB: matcher_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dev_user -d matcher_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -37,8 +37,8 @@ services:
       - "5672:5672"   # RabbitMQ API
       - "15672:15672" # Management UI
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -53,8 +53,8 @@ services:
       - "9000:9000" # API Port
       - "9001:9001" # Console/UI Port
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
@@ -71,9 +71,12 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc alias set local_minio http://minio:9000 minioadmin minioadmin;
+      /usr/bin/mc alias set local_minio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
       /usr/bin/mc mb --ignore-existing local_minio/resumes;
       /usr/bin/mc anonymous set download local_minio/resumes;
       exit 0;
@@ -89,9 +92,9 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - DATABASE_URL=postgresql://dev_user:dev_password@postgres:5432/matcher_db
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=${DATABASE_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - REDIS_URL=${REDIS_URL}
     depends_on:
       postgres:
         condition: service_healthy
@@ -108,12 +111,12 @@ services:
     ports:
       - "3002:3002"
     environment:
-      - DATABASE_URL=postgresql://dev_user:dev_password@postgres:5432/matcher_db
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - MINIO_ENDPOINT=minio
-      - MINIO_PORT=9000
-      - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin
+      - DATABASE_URL=${DATABASE_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_PORT=${MINIO_PORT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     depends_on:
       postgres:
         condition: service_healthy
@@ -130,9 +133,9 @@ services:
     ports:
       - "3003:3003"
     environment:
-      - DATABASE_URL=postgresql://dev_user:dev_password@postgres:5432/matcher_db
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=${DATABASE_URL}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+      - REDIS_URL=${REDIS_URL}
     depends_on:
       postgres:
         condition: service_healthy
