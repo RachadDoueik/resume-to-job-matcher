@@ -31,8 +31,11 @@ export class JobScraperService {
         this.logger.log(`Fetching URL: ${dto.url}`);
         const response = await firstValueFrom(this.httpService.get(dto.url));
         const $ = cheerio.load(response.data);
-        // Basic extraction of readable text from body
-        $('script, style, noscript').remove();
+        
+        // Remove unnecessary clutter
+        $('script, style, nav, footer, header, noscript, svg').remove();
+        
+        // Extract plain text and compress whitespace
         rawText = $('body').text().replace(/\s+/g, ' ').trim();
       }
 
@@ -42,26 +45,29 @@ export class JobScraperService {
 
       this.logger.log('Sending text to Gemini for extraction...');
       
-      // Use gemini-3.5-flash-preview for fast and cost-effective text tasks
-      const model = this.genAI.getGenerativeModel({ model: 'gemini-3.5-flash-lite-preview' });
+      const model = this.genAI.getGenerativeModel({ 
+        model: 'gemini-3.1-flash-lite-preview',
+        generationConfig: {
+          responseMimeType: 'application/json',
+        }
+      });
 
-      const prompt = `Extract job requirements from the text below. 
-Return ONLY valid JSON matching this exact structure:
-{ 
-  "title": "string", 
-  "company": "string", 
-  "skills": ["string", "string"], 
-  "stack": ["string", "string"], 
-  "experienceYears": number (use 0 if not found), 
-  "seniority": "junior"|"mid"|"senior"|"lead" (infer from context), 
-  "rawText": "string"
-}
-No markdown formatting, no explanation, no backticks, only raw JSON block.
-
-Text to analyze:
-${rawText.substring(0, 15000)}
-`;
-
+      const prompt = `Extract job requirements from the following text.
+      Return ONLY valid JSON matching this exact schema:
+      {
+        "title": "Job Title (string)",
+        "company": "Company Name (string)",
+        "skills": ["Array", "of", "required", "skills"],
+        "stack": ["Array", "of", "technologies", "and", "tools"],
+        "experienceYears": 0,
+        "seniority": "junior" | "mid" | "senior" | "lead",
+        "rawText": "A 1-2 sentence short summary of the role"
+      }
+      
+      Job Content:
+      ${rawText.substring(0, 15000)}
+      `;
+      
       const result = await model.generateContent(prompt);
       const outputText = result.response.text();
       
