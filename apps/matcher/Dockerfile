@@ -28,7 +28,7 @@ COPY --from=builder /app/dist/apps/matcher ./dist
 # Install ONLY production dependencies to keep the image light
 RUN npm install --only=production
 
-# Expose the port (adjust per service if they aren't all on 3000)
-EXPOSE 3002:3002
+# Expose the container port
+EXPOSE 3002
 
 CMD ["node", "dist/main.js"]

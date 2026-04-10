@@ -7,6 +7,8 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
+    "docker:up:strict": "powershell -ExecutionPolicy Bypass -File ./scripts/docker-up-strict.ps1",
+    "docker:down": "docker compose down",
     "format": "prettier --write \"apps/**/*.ts\" \"libs/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",

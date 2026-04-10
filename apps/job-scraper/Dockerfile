@@ -28,7 +28,7 @@ COPY --from=builder /app/dist/apps/job-scraper ./dist
 # Install ONLY production dependencies to keep the image light
 RUN npm install --only=production
 
-# Expose the port (adjust per service if they aren't all on 3000)
-EXPOSE 3001:3001
+# Expose the container port
+EXPOSE 3001
 
 CMD ["node", "dist/main.js"]

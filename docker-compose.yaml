@@ -1,24 +1,26 @@
 services:
   # Database: Persistent storage for users, jobs, and scores
   postgres:
+    profiles: ["infra"]
     image: postgres:16-alpine
     container_name: matcher_db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-dev_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-matcher_db}
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-dev_user} -d ${POSTGRES_DB:-matcher_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   # Cache & Task Management
   redis:
+    profiles: ["infra"]
     image: redis:7-alpine
     container_name: matcher_cache
     ports:
@@ -31,14 +33,16 @@ services:
 
   # Message Broker for Service A -> B -> C communication
   rabbitmq:
+    profiles: ["infra"]
     image: rabbitmq:3-management-alpine
     container_name: matcher_broker
     ports:
       - "5672:5672"   # RabbitMQ API
       - "15672:15672" # Management UI
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_ERLANG_COOKIE: "secret_cookie_for_development"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -47,14 +51,15 @@ services:
 
   # Object Storage (S3 Replacement)
   minio:
+    profiles: ["infra"]
     image: minio/minio
     container_name: matcher_storage
     ports:
       - "9000:9000" # API Port
       - "9001:9001" # Console/UI Port
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     command: server /data --console-address ":9001"
     volumes:
       - miniodata:/data
@@ -66,14 +71,15 @@ services:
 
   # Automated Bucket Creator
   createbuckets:
+    profiles: ["infra"]
     image: minio/mc
     container_name: matcher_bucket_init
     depends_on:
       minio:
         condition: service_healthy
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     entrypoint: >
       /bin/sh -c "
       /usr/bin/mc alias set local_minio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
@@ -84,7 +90,28 @@ services:
 
   # --- NestJS Applications ---
 
+  api-gateway:
+    profiles: ["apps"]
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    container_name: api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL_DOCKER:-postgresql://dev_user:dev_password@postgres:5432/matcher_db?schema=public}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
   job-scraper:
+    profiles: ["apps"]
     build:
       context: .
       dockerfile: apps/job-scraper/Dockerfile
@@ -92,9 +119,9 @@ services:
     ports:
       - "3001:3001"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
-      - REDIS_URL=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL_DOCKER:-postgresql://dev_user:dev_password@postgres:5432/matcher_db?schema=public}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     depends_on:
       postgres:
         condition: service_healthy
@@ -104,6 +131,7 @@ services:
         condition: service_healthy
 
   matcher:
+    profiles: ["apps"]
     build:
       context: .
       dockerfile: apps/matcher/Dockerfile
@@ -111,12 +139,12 @@ services:
     ports:
       - "3002:3002"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
-      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
-      - MINIO_PORT=${MINIO_PORT}
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - DATABASE_URL=${DATABASE_URL_DOCKER:-postgresql://dev_user:dev_password@postgres:5432/matcher_db?schema=public}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-minio}
+      - MINIO_PORT=${MINIO_PORT:-9000}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
     depends_on:
       postgres:
         condition: service_healthy
@@ -124,8 +152,11 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      createbuckets:
+        condition: service_completed_successfully
 
   optimizer:
+    profiles: ["apps"]
     build:
       context: .
       dockerfile: apps/optimizer/Dockerfile
@@ -133,9 +164,9 @@ services:
     ports:
       - "3003:3003"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - RABBITMQ_URL=${RABBITMQ_URL}
-      - REDIS_URL=${REDIS_URL}
+      - DATABASE_URL=${DATABASE_URL_DOCKER:-postgresql://dev_user:dev_password@postgres:5432/matcher_db?schema=public}
+      - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
     depends_on:
       postgres:
         condition: service_healthy

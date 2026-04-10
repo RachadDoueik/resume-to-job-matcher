@@ -30,10 +30,6 @@ COPY --from=builder /app/package*.json ./
 # Install ONLY production dependencies to keep the image light
 RUN npm install --omit=dev
 
-# Copy generated Prisma client from builder (if exist)
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-
 # Copy the built output from the builder stage
 COPY --from=builder /app/dist/apps/api-gateway ./dist
 

@@ -28,7 +28,7 @@ COPY --from=builder /app/dist/apps/optimizer ./dist
 # Install ONLY production dependencies to keep the image light
 RUN npm install --only=production
 
-# Expose the port (adjust per service if they aren't all on 3000)
-EXPOSE 3003:3003
+# Expose the container port
+EXPOSE 3003
 
 CMD ["node", "dist/main.js"]
