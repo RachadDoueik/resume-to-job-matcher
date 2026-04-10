@@ -31,9 +31,4 @@ export class ApiGatewayController {
     return this.apiGatewayService.scrapeJob(dto, req.user);
   }
 
-  @Post('analysis/match')
-  @UseGuards(JwtAuthGuard)
-  matchResume(@Body() dto: ScrapeJobDto, @Req() req: RequestWithUser) {
-    return this.apiGatewayService.matchResume(dto, req.user);
-  }
 }
