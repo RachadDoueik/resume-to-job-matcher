@@ -7,7 +7,7 @@ import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Redis from 'ioredis';
 import * as crypto from 'crypto';
-const pdf = require('pdf-parse');
+import { PDFParse } from 'pdf-parse';
 
 @Injectable()
 export class MatcherService {
@@ -45,19 +45,60 @@ export class MatcherService {
     return crypto.createHash('md5').update(JSON.stringify(data)).digest('hex');
   }
 
+  private isNoSuchKeyError(error: any): boolean {
+    return (
+      error?.name === 'NoSuchKey' ||
+      error?.Code === 'NoSuchKey' ||
+      error?.$metadata?.httpStatusCode === 404
+    );
+  }
+
   private async getResumeTextFromS3(resumeId: string): Promise<string> {
     try {
-      this.logger.log('Fetching PDF from MinIO bucket...');
-      const command = new GetObjectCommand({ Bucket: this.s3Bucket, Key: resumeId });
-      const response = await this.s3Client.send(command);
-      if (!response.Body) throw new Error('S3 response body is empty');
-      
-      const chunks: Buffer[] = [];
-      for await (const chunk of response.Body as any) chunks.push(chunk);
-      const buffer = Buffer.concat(chunks);
+      const normalizedId = decodeURIComponent(resumeId).trim();
+      const candidateKeys = new Set<string>([normalizedId]);
 
-      const pdfData = await pdf(buffer);
-      return pdfData.text;
+      if (normalizedId.toLowerCase().endsWith('.pdf')) {
+        candidateKeys.add(normalizedId.slice(0, -4));
+      } else {
+        candidateKeys.add(`${normalizedId}.pdf`);
+      }
+
+      for (const key of candidateKeys) {
+        try {
+          this.logger.log(`Fetching PDF from MinIO bucket using key: ${key}`);
+          const command = new GetObjectCommand({ Bucket: this.s3Bucket, Key: key });
+          const response = await this.s3Client.send(command);
+          if (!response.Body) throw new Error(`S3 response body is empty for key: ${key}`);
+
+          const chunks: Buffer[] = [];
+          for await (const chunk of response.Body as any) chunks.push(chunk);
+          const buffer = Buffer.concat(chunks);
+
+          const parser = new PDFParse({ data: buffer });
+          try {
+            const pdfData = await parser.getText();
+            return pdfData.text;
+          } finally {
+            await parser.destroy();
+          }
+        } catch (error: any) {
+          if (this.isNoSuchKeyError(error)) {
+            this.logger.warn(`Resume key not found in MinIO: ${key}`);
+            continue;
+          }
+
+          throw error;
+        }
+      }
+
+      const resumeMeta = await this.prisma.resume.findUnique({ where: { id: normalizedId } });
+      if (resumeMeta?.content?.trim()) {
+        this.logger.warn(`MinIO object missing for ${normalizedId}. Falling back to resume content stored in DB.`);
+        return resumeMeta.content;
+      }
+
+      throw new Error(`No matching object found in MinIO for resumeId: ${normalizedId}`);
     } catch (error: any) {
       this.logger.error('S3 Fetch Error: ' + error.message);
       throw new RpcException('Resume missing or corrupted: ' + error.message);
@@ -76,7 +117,7 @@ export class MatcherService {
 
       // Using Gemini Pro 3.1 (matching your preference) for matching analysis
       const model = this.genAI.getGenerativeModel({ 
-        model: 'gemini-3.1-pro-preview',
+        model: 'gemini-3-flash-preview',
         generationConfig: { responseMimeType: 'application/json' }
       });
 

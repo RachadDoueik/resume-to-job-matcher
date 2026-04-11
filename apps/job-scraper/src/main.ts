@@ -1,20 +1,21 @@
 import { NestFactory } from '@nestjs/core';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { JobScraperModule } from './job-scraper.module';
-import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 
 async function bootstrap() {
-  const initApp = await NestFactory.create(JobScraperModule);
-  const configService = initApp.get(ConfigService);
-  const port = configService.get<number>('PORT_JOB_SCRAPER') || 3001;
+  const port = Number(process.env.PORT_JOB_SCRAPER_SERVICE || process.env.PORT_JOB_SCRAPER || 3001);
+  const host = process.env.JOB_SCRAPER_HOST || '0.0.0.0';
 
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(
     JobScraperModule,
     {
       transport: Transport.TCP,
-      options: { port },
+      options: { host, port },
     },
   );
+
   await app.listen();
+  Logger.log(`Job scraper TCP microservice listening on ${host}:${port}`, 'Bootstrap');
 }
 bootstrap();

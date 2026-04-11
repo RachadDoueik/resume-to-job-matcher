@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Req,
   UseGuards,
@@ -29,6 +30,16 @@ export class ApiGatewayController {
   @UseGuards(JwtAuthGuard)
   scrapeJob(@Body() dto: ScrapeJobDto, @Req() req: RequestWithUser) {
     return this.apiGatewayService.scrapeJob(dto, req.user);
+  }
+
+  @Post('analysis/match/:resumeId')
+  @UseGuards(JwtAuthGuard)
+  matchResume(
+    @Param('resumeId') resumeId: string,
+    @Body() dto: ScrapeJobDto,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.apiGatewayService.matchResume(dto, req.user, resumeId);
   }
 
 }
