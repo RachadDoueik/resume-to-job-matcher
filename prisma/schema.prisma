@@ -28,3 +28,25 @@ model Resume {
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
 }
+
+model MatchResult {
+  id            String   @id @default(uuid())
+  score         Int
+  matchedSkills String[] // Stored as arrays in PostgreSQL
+  missingSkills String[]
+  summary       String   @db.Text
+  resumeId      String
+  jobTitle      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model OptimizationResult {
+  id             String   @id @default(uuid())
+  userId         String
+  resumeId       String
+  projectIdeas   Json     // Store as a JSON array of `{ title, description, techStack }`
+  certifications Json     // Store as a JSON array of `{ name, provider, url }`
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

@@ -1,20 +1,22 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { RpcException } from '@nestjs/microservices';
+import { Injectable, Logger, Inject, OnModuleInit } from '@nestjs/common';
+import { RpcException, ClientProxy } from '@nestjs/microservices';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, catchError, throwError } from 'rxjs';
 import * as cheerio from 'cheerio';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { JobDescriptionDto, ScrapeJobDto } from '@app/dto';
+import { JobDescriptionDto, ScrapeJobDto, MatchRequestDto, MatchResultDto } from '@app/dto';
+import { MSG } from '@app/contracts';
 
 @Injectable()
-export class JobScraperService {
+export class JobScraperService implements OnModuleInit {
   private readonly logger = new Logger(JobScraperService.name);
   private genAI: GoogleGenerativeAI;
 
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    @Inject('MATCHER_SERVICE') private readonly matcherClient: ClientProxy,
   ) {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
@@ -22,6 +24,14 @@ export class JobScraperService {
     }
     this.genAI = new GoogleGenerativeAI(apiKey || '');
   }
+
+  async onModuleInit() {
+    this.logger.log('Connecting to MATCHER_SERVICE via TCP...');
+    await this.matcherClient.connect();
+    this.logger.log('Connected to MATCHER_SERVICE');
+  }
+
+  
 
   async scrapeJob(dto: ScrapeJobDto): Promise<JobDescriptionDto> {
     try {
@@ -87,5 +97,20 @@ export class JobScraperService {
       throw new RpcException(`Failed to extract job description: ${error.message}`);
     }
   }
-}
 
+
+
+
+  async forwardToMatcher(jobDescription: JobDescriptionDto, resumeId: string): Promise<MatchResultDto> {
+    const matchRequest: MatchRequestDto = { resumeId, jobDescription };
+    this.logger.log('Forwarding manually to Matcher service...');
+    return firstValueFrom(
+      this.matcherClient.send(MSG.MATCH_RESUME, matchRequest).pipe(
+        catchError((error) => {
+          this.logger.error(`Error from Matcher service: ${error.message || error}`);
+          return throwError(() => new RpcException(`Matcher service failed: ${error.message || error}`));
+        }),
+      )
+    );
+  }
+}
