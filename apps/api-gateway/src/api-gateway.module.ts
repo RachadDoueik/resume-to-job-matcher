@@ -5,6 +5,7 @@ import { ApiGatewayController } from './api-gateway.controller';
 import { ApiGatewayService } from './api-gateway.service';
 import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ResumesModule } from './resumes/resumes.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { PrismaModule } from './prisma/prisma.module';
       },    ]),
     AuthModule,
     PrismaModule,
+    ResumesModule,
   ],
   controllers: [ApiGatewayController],
   providers: [ApiGatewayService],
