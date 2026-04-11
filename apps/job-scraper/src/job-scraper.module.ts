@@ -13,7 +13,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
     HttpModule,
     ClientsModule.registerAsync([
       {
-        name: 'MATCHER_SERVICE',
+        name: 'MATCHER',
         useFactory: (configService: ConfigService) => ({
           transport: Transport.TCP,
           options: {
