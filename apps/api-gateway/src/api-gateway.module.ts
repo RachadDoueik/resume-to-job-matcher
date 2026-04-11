@@ -20,21 +20,12 @@ import { ResumesModule } from './resumes/resumes.module';
           transport: Transport.TCP,
           options: {
             host: 'localhost',
-            port: configService.get<number>('PORT_JOB_SCRAPER') || 3001,
+            port: configService.get<number>('PORT_JOB_SCRAPER_SERVICE') || 3001,
           },
         }),
         inject: [ConfigService],
-      },      {
-        name: 'MATCHER_SERVICE',
-        useFactory: (configService: ConfigService) => ({
-          transport: Transport.TCP,
-          options: {
-            host: 'localhost',
-            port: configService.get<number>('PORT_MATCHER_SERVICE') || 3002,
-          },
-        }),
-        inject: [ConfigService],
-      },    ]),
+      },
+    ]),
     AuthModule,
     PrismaModule,
     ResumesModule,

@@ -1,6 +1,6 @@
 import { Inject, Injectable, OnModuleInit, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { ScrapeJobDto } from '@app/dto';
+import { ScrapeAndMatchDto, ScrapeJobDto } from '@app/dto';
 import { AuthUser } from './auth/interfaces/auth-user.interface';
 import { MSG } from '@app/contracts';
 import { firstValueFrom, catchError, throwError } from 'rxjs';
@@ -11,17 +11,12 @@ export class ApiGatewayService implements OnModuleInit {
 
   constructor(
     @Inject('JOB_SCRAPER_SERVICE') private readonly scraperClient: ClientProxy,
-    @Inject('MATCHER_SERVICE') private readonly matcherClient: ClientProxy,
   ) {}
 
   async onModuleInit() {
     this.logger.log('Connecting to JOB_SCRAPER_SERVICE via TCP...');
     await this.scraperClient.connect();
     this.logger.log('Connected to JOB_SCRAPER_SERVICE');
-
-    this.logger.log('Connecting to MATCHER_SERVICE via TCP...');
-    await this.matcherClient.connect();
-    this.logger.log('Connected to MATCHER_SERVICE');
   }
 
   getHello(): string {
@@ -49,22 +44,19 @@ export class ApiGatewayService implements OnModuleInit {
 
 
   // This is the main method that orchestrates the entire match pipeline
-  async matchResume(dto: ScrapeJobDto, user: AuthUser) {
+  async matchResume(dto: ScrapeJobDto, user: AuthUser, resumeId: string) {
     this.logger.log(`Full match pipeline requested by user ${user.email}`);
 
-    // Fetch primary resume for user (mocked for now)
-    const mockResumeId = '1234-abcd-5678-efgh';
-
-    // 1. Scrape Job first by calling job-scraper manually
-    const jobDescription = await this.scrapeJob(dto, user);
-
-    // 2. Then send the MatchRequestDto exactly as expected to MATCHER via TCP
-    const matchRequest = { resumeId: mockResumeId, jobDescription };
+    // Scraper handles scraping then forwards the payload to Matcher over TCP.
+    const scrapeAndMatchRequest: ScrapeAndMatchDto = {
+      ...dto,
+      resumeId,
+    };
 
     return firstValueFrom(
-      this.matcherClient.send(MSG.MATCH_RESUME, matchRequest).pipe(
+      this.scraperClient.send(MSG.SCRAPE_AND_MATCH, scrapeAndMatchRequest).pipe(
         catchError((error) => {
-          this.logger.error(`Error in matcher service: ${error.message || error}`);
+          this.logger.error(`Error in scrape and match pipeline: ${error.message || error}`);
           const statusCode = typeof error.status === 'number' ? error.status : HttpStatus.BAD_REQUEST;
           return throwError(() => new HttpException(
             error.message || 'Error occurred while running the match pipeline',

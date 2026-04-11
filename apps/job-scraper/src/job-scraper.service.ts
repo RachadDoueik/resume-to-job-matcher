@@ -5,8 +5,15 @@ import { ConfigService } from '@nestjs/config';
 import { firstValueFrom, catchError, throwError } from 'rxjs';
 import * as cheerio from 'cheerio';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { JobDescriptionDto, ScrapeJobDto, MatchRequestDto, MatchResultDto } from '@app/dto';
+import {
+  JobDescriptionDto,
+  ScrapeJobDto,
+  ScrapeAndMatchDto,
+  MatchRequestDto,
+  MatchResultDto,
+} from '@app/dto';
 import { MSG } from '@app/contracts';
+
 
 @Injectable()
 export class JobScraperService implements OnModuleInit {
@@ -30,8 +37,6 @@ export class JobScraperService implements OnModuleInit {
     await this.matcherClient.connect();
     this.logger.log('Connected to MATCHER_SERVICE');
   }
-
-  
 
   async scrapeJob(dto: ScrapeJobDto): Promise<JobDescriptionDto> {
     try {
@@ -98,19 +103,29 @@ export class JobScraperService implements OnModuleInit {
     }
   }
 
+  async scrapeAndMatch(dto: ScrapeAndMatchDto): Promise<MatchResultDto> {
+    try {
+      const jobDescription = await this.scrapeJob(dto);
+      const matchRequest: MatchRequestDto = {
+        resumeId: dto.resumeId,
+        jobDescription,
+      };
 
+      this.logger.log(`Forwarding scraped job to MATCHER_SERVICE for resumeId: ${dto.resumeId}`);
 
-
-  async forwardToMatcher(jobDescription: JobDescriptionDto, resumeId: string): Promise<MatchResultDto> {
-    const matchRequest: MatchRequestDto = { resumeId, jobDescription };
-    this.logger.log('Forwarding manually to Matcher service...');
-    return firstValueFrom(
-      this.matcherClient.send(MSG.MATCH_RESUME, matchRequest).pipe(
-        catchError((error) => {
-          this.logger.error(`Error from Matcher service: ${error.message || error}`);
-          return throwError(() => new RpcException(`Matcher service failed: ${error.message || error}`));
-        }),
-      )
-    );
+      return await firstValueFrom(
+        this.matcherClient.send(MSG.MATCH_RESUME, matchRequest).pipe(
+          catchError((error) => {
+            const message = error?.message || 'Matcher service failed';
+            this.logger.error(`Matcher forwarding error: ${message}`);
+            return throwError(() => new RpcException(message));
+          }),
+        ),
+      );
+    } catch (error: any) {
+      this.logger.error(`Error in scrapeAndMatch: ${error.message}`, error.stack);
+      throw new RpcException(`Failed to scrape and match: ${error.message}`);
+    }
   }
 }
+
