@@ -23,8 +23,17 @@ import { PrismaModule } from './prisma/prisma.module';
           },
         }),
         inject: [ConfigService],
-      },
-    ]),
+      },      {
+        name: 'MATCHER_SERVICE',
+        useFactory: (configService: ConfigService) => ({
+          transport: Transport.TCP,
+          options: {
+            host: 'localhost',
+            port: configService.get<number>('PORT_MATCHER_SERVICE') || 3002,
+          },
+        }),
+        inject: [ConfigService],
+      },    ]),
     AuthModule,
     PrismaModule,
   ],
