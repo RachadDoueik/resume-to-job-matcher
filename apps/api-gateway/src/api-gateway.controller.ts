@@ -42,4 +42,13 @@ export class ApiGatewayController {
     return this.apiGatewayService.matchResume(dto, req.user, resumeId);
   }
 
+  @Get('analysis/optimization/:resumeId')
+  @UseGuards(JwtAuthGuard)
+  getOptimizationResult(
+    @Param('resumeId') resumeId: string,
+    @Req() req: RequestWithUser,
+  ) {
+    return this.apiGatewayService.getOptimizationResult(req.user, resumeId);
+  }
+
 }

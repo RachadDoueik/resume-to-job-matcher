@@ -6,3 +6,4 @@ export * from './job-description.dto';
 export * from './match-request.dto';
 export * from './match-result.dto';
 export * from './gap-analysis-event.dto';
+export * from './optimization-result.dto';

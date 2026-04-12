@@ -97,7 +97,7 @@ services:
       dockerfile: apps/api-gateway/Dockerfile
     container_name: api-gateway
     ports:
-      - "3000:3000"
+      - "3003:3003"
     environment:
       - DATABASE_URL=${DATABASE_URL_DOCKER:-postgresql://dev_user:dev_password@postgres:5432/matcher_db?schema=public}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
@@ -117,7 +117,7 @@ services:
       dockerfile: apps/job-scraper/Dockerfile
     container_name: job-scraper
     ports:
-      - "3001:3001"
+      - "3002:3002"
     environment:
       - DATABASE_URL=${DATABASE_URL_DOCKER:-postgresql://dev_user:dev_password@postgres:5432/matcher_db?schema=public}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
@@ -137,7 +137,7 @@ services:
       dockerfile: apps/matcher/Dockerfile
     container_name: matcher
     ports:
-      - "3002:3002"
+      - "3001:3001"
     environment:
       - DATABASE_URL=${DATABASE_URL_DOCKER:-postgresql://dev_user:dev_password@postgres:5432/matcher_db?schema=public}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
@@ -162,11 +162,12 @@ services:
       dockerfile: apps/optimizer/Dockerfile
     container_name: optimizer
     ports:
-      - "3003:3003"
+      - "3000:3000"
     environment:
       - DATABASE_URL=${DATABASE_URL_DOCKER:-postgresql://dev_user:dev_password@postgres:5432/matcher_db?schema=public}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

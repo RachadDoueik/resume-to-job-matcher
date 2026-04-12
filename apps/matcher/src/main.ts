@@ -4,7 +4,7 @@ import { MatcherModule } from './matcher.module';
 import { Logger } from '@nestjs/common';
 
 async function bootstrap() {
-  const port = Number(process.env.PORT_MATCHER_SERVICE || process.env.MATCHER_PORT || 3002);
+  const port = Number(process.env.PORT_MATCHER_SERVICE || process.env.MATCHER_PORT || 3001);
   const host = process.env.MATCHER_HOST || '0.0.0.0';
 
   const app = await NestFactory.createMicroservice<MicroserviceOptions>(
