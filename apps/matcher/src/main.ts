@@ -3,6 +3,14 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { MatcherModule } from './matcher.module';
 import { Logger } from '@nestjs/common';
 
+/**
+ * Boots the Matcher TCP microservice and begins listening for connections.
+ *
+ * Reads the port from `PORT_MATCHER_SERVICE` or `MATCHER_PORT` (default `3002`)
+ * and the host from `MATCHER_HOST` (default `0.0.0.0`), creates a NestJS TCP
+ * microservice configured with those values, starts it, and logs the listening
+ * address with the context `Bootstrap`.
+ */
 async function bootstrap() {
   const port = Number(process.env.PORT_MATCHER_SERVICE || process.env.MATCHER_PORT || 3002);
   const host = process.env.MATCHER_HOST || '0.0.0.0';
