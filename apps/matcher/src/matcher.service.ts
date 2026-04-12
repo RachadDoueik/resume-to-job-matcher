@@ -121,12 +121,13 @@ export class MatcherService {
         generationConfig: { responseMimeType: 'application/json' }
       });
 
-      const prompt = `Compare the provided Resume against the Job Description. Return strictly valid JSON with no markdown wrapping. Format:
+      const prompt = `You are an expert career coach. Compare the provided Resume against the Job Description.
+      Return strictly valid JSON with no markdown wrapping. The summary must be user-facing, speak directly to the candidate in second person, and begin with "You are". Format:
       {
         "score": 0,
         "matchedSkills": ["Array", "of", "found", "skills"],
         "missingSkills": ["Array", "of", "missing", "skills"],
-        "summary": "Short 2 sentence specific summary of the gap analysis."
+        "summary": "Short 2 sentence summary that starts with 'You are' and talks directly to the user."
       }
       Job Description: ${JSON.stringify(dto.jobDescription)}
       Resume: ${resumeText.substring(0, 15000)}`;
@@ -134,12 +135,16 @@ export class MatcherService {
       const result = await model.generateContent(prompt);
       const cleanText = result.response.text().replace(/^\s*```json\s*/i, '').replace(/\s*```\s*$/i, '').trim();
       const parsedMatch = JSON.parse(cleanText);
+      const rawSummary = typeof parsedMatch.summary === 'string' ? parsedMatch.summary.trim() : '';
+      const normalizedSummary = rawSummary
+        ? (rawSummary.toLowerCase().startsWith('you are') ? rawSummary : `You are ${rawSummary}`)
+        : 'You are now viewing your gap analysis for this role.';
 
       const matchResult: MatchResultDto = {
         score: parsedMatch.score || 0,
         matchedSkills: parsedMatch.matchedSkills || [],
         missingSkills: parsedMatch.missingSkills || [],
-        summary: parsedMatch.summary || 'Gap analysis completed.',
+        summary: normalizedSummary,
         resumeId: dto.resumeId,
         jobTitle: dto.jobDescription.title || 'Unknown Title',
       };
