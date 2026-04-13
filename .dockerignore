@@ -1,0 +1,16 @@
+.git
+.github
+.vscode
+
+node_modules
+dist
+coverage
+
+**/*.log
+npm-debug.log*
+
+.env
+.env.*
+
+**/test
+**/*.spec.ts

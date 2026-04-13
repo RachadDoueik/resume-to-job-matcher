@@ -1,34 +1,32 @@
-# Stage 1: Build the application
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy configuration files
-COPY package*.json ./
-COPY tsconfig*.json ./
-
-# Install all dependencies (including devDependencies for build)
-RUN npm install
-
-# Copy source code
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build the NestJS app (outputs to /dist)
+RUN npx prisma generate || true
 RUN npx nest build matcher
 
-# Stage 2: Production environment
-FROM node:20-alpine
+# Keep only runtime dependencies for the final image.
+RUN npm prune --omit=dev && npm cache clean --force
+
+FROM node:20-alpine AS runner
 
 WORKDIR /app
+ENV NODE_ENV=production
 
-# Copy the build output and package files from the builder stage
-COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist/apps/matcher ./dist
 
-# Install ONLY production dependencies to keep the image light
-RUN npm install --only=production
-
-# Expose the container port
 EXPOSE 3001
 
 CMD ["node", "dist/main.js"]

@@ -19,7 +19,7 @@ import { ResumesModule } from './resumes/resumes.module';
         useFactory: (configService: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            host: 'localhost',
+            host: configService.get<string>('JOB_SCRAPER_HOST') || 'localhost',
             port: configService.get<number>('PORT_JOB_SCRAPER_SERVICE') || 3002,
           },
         }),

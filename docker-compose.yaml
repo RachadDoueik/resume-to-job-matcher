@@ -101,9 +101,10 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL_DOCKER:-postgresql://dev_user:dev_password@postgres:5432/matcher_db?schema=public}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - REDIS_URL=${REDIS_URL_DOCKER:-redis://redis:6379}
       - PORT_GATEWAY=${PORT_GATEWAY:-3003}
       - PORT_JOB_SCRAPER_SERVICE=${PORT_JOB_SCRAPER_SERVICE:-3002}
+      - JOB_SCRAPER_HOST=${JOB_SCRAPER_HOST:-job-scraper}
     depends_on:
       postgres:
         condition: service_healthy
@@ -123,9 +124,11 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL_DOCKER:-postgresql://dev_user:dev_password@postgres:5432/matcher_db?schema=public}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - REDIS_URL=${REDIS_URL_DOCKER:-redis://redis:6379}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - PORT_JOB_SCRAPER_SERVICE=${PORT_JOB_SCRAPER_SERVICE:-3002}
       - PORT_MATCHER_SERVICE=${PORT_MATCHER_SERVICE:-3001}
+      - MATCHER_HOST=${MATCHER_HOST:-matcher}
     depends_on:
       postgres:
         condition: service_healthy
@@ -149,7 +152,9 @@ services:
       - MINIO_PORT=${MINIO_PORT:-9000}
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - PORT_MATCHER_SERVICE=${PORT_MATCHER_SERVICE:-3001}
+      - REDIS_URL=${REDIS_URL_DOCKER:-redis://redis:6379}
     depends_on:
       postgres:
         condition: service_healthy
@@ -159,6 +164,8 @@ services:
         condition: service_healthy
       createbuckets:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
 
   optimizer:
     profiles: ["apps"]
@@ -171,7 +178,7 @@ services:
     environment:
       - DATABASE_URL=${DATABASE_URL_DOCKER:-postgresql://dev_user:dev_password@postgres:5432/matcher_db?schema=public}
       - RABBITMQ_URL=${RABBITMQ_URL:-amqp://guest:guest@rabbitmq:5672}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - REDIS_URL=${REDIS_URL_DOCKER:-redis://redis:6379}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - PORT_OPTIMIZER_SERVICE=${PORT_OPTIMIZER_SERVICE:-3000}
     depends_on:

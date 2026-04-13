@@ -17,7 +17,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
         useFactory: (configService: ConfigService) => ({
           transport: Transport.TCP,
           options: {
-            host: 'localhost',
+            host: configService.get<string>('MATCHER_HOST') || 'localhost',
             port: configService.get<number>('PORT_MATCHER_SERVICE') || 3001,
           },
         }),
