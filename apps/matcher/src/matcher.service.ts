@@ -160,6 +160,7 @@ export class MatcherService {
              matchedSkills: matchResult.matchedSkills,
              missingSkills: matchResult.missingSkills,
              summary: matchResult.summary,
+             userId: resumeMeta.userId,
              resumeId: matchResult.resumeId,
              jobTitle: matchResult.jobTitle
            } 
