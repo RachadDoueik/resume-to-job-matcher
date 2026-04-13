@@ -16,6 +16,7 @@ export class OptimizerService implements OnModuleDestroy {
   private readonly logger = new Logger(OptimizerService.name);
   private readonly redis: Redis;
   private readonly genAI: GoogleGenerativeAI | null;
+  private readonly geminiTimeoutMs: number;
 
   constructor(
     private readonly configService: ConfigService,
@@ -23,6 +24,11 @@ export class OptimizerService implements OnModuleDestroy {
   ) {
     const redisUrl = this.configService.get<string>('REDIS_URL') || 'redis://localhost:6379';
     this.redis = new Redis(redisUrl);
+
+    const configuredGeminiTimeoutMs = Number(this.configService.get<string>('GEMINI_TIMEOUT_MS') ?? '30000');
+    this.geminiTimeoutMs = Number.isFinite(configuredGeminiTimeoutMs) && configuredGeminiTimeoutMs > 0
+      ? configuredGeminiTimeoutMs
+      : 30000;
 
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) {
@@ -149,6 +155,29 @@ export class OptimizerService implements OnModuleDestroy {
     return output;
   }
 
+  private async generateContentWithTimeout(
+    model: ReturnType<GoogleGenerativeAI['getGenerativeModel']>,
+    prompt: string,
+    operation: string,
+  ) {
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => controller.abort(), this.geminiTimeoutMs);
+
+    try {
+      return await model.generateContent(prompt, { signal: controller.signal });
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        throw new Error(
+          `Gemini request timed out after ${this.geminiTimeoutMs}ms during ${operation}.`,
+        );
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeoutHandle);
+    }
+  }
+
   private async generateRecommendations(dto: GapAnalysisReadyEventDto): Promise<Pick<OptimizationResultDto, 'projectIdeas' | 'certifications'>> {
     if (!this.genAI) {
       throw new Error('Missing GEMINI_API_KEY: optimizer cannot generate personalized recommendations.');
@@ -188,7 +217,11 @@ export class OptimizerService implements OnModuleDestroy {
         missingSkills: this.normalizeStringArray(dto.missingSkills),
       })}`;
 
-      const result = await model.generateContent(prompt);
+      const result = await this.generateContentWithTimeout(
+        model,
+        prompt,
+        'optimization recommendations',
+      );
       const cleanText = this.cleanJsonResponse(result.response.text());
       const parsed = JSON.parse(cleanText) as Record<string, unknown>;
 

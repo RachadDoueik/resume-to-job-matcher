@@ -19,6 +19,7 @@ import { MSG } from '@app/contracts';
 export class JobScraperService implements OnModuleInit {
   private readonly logger = new Logger(JobScraperService.name);
   private genAI: GoogleGenerativeAI;
+  private readonly geminiTimeoutMs: number;
 
   constructor(
     private readonly httpService: HttpService,
@@ -29,7 +30,36 @@ export class JobScraperService implements OnModuleInit {
     if (!apiKey) {
       this.logger.warn('GEMINI_API_KEY is not defined in the environment variables.');
     }
+
+    const configuredGeminiTimeoutMs = Number(this.configService.get<string>('GEMINI_TIMEOUT_MS') ?? '30000');
+    this.geminiTimeoutMs = Number.isFinite(configuredGeminiTimeoutMs) && configuredGeminiTimeoutMs > 0
+      ? configuredGeminiTimeoutMs
+      : 30000;
+
     this.genAI = new GoogleGenerativeAI(apiKey || '');
+  }
+
+  private async generateContentWithTimeout(
+    model: ReturnType<GoogleGenerativeAI['getGenerativeModel']>,
+    prompt: string,
+    operation: string,
+  ) {
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => controller.abort(), this.geminiTimeoutMs);
+
+    try {
+      return await model.generateContent(prompt, { signal: controller.signal });
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        throw new Error(
+          `Gemini request timed out after ${this.geminiTimeoutMs}ms during ${operation}.`,
+        );
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeoutHandle);
+    }
   }
 
   async onModuleInit() {
@@ -83,7 +113,7 @@ export class JobScraperService implements OnModuleInit {
       ${rawText.substring(0, 15000)}
       `;
       
-      const result = await model.generateContent(prompt);
+      const result = await this.generateContentWithTimeout(model, prompt, 'job extraction');
       const outputText = result.response.text();
       
       const cleanedText = outputText.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim();
