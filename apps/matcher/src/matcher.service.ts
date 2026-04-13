@@ -180,40 +180,36 @@ export class MatcherService {
 
       // Ensure the resume exists in DB before attempting to link a MatchResult
       const resumeMeta = await this.prisma.resume.findUnique({ where: { id: dto.resumeId } });
-      
-      if (resumeMeta) {
-        // Save to postgres if resume exists
-         await this.prisma.matchResult.create({ 
-           data: {
-             score: matchResult.score,
-             matchedSkills: matchResult.matchedSkills,
-             missingSkills: matchResult.missingSkills,
-             summary: matchResult.summary,
-             userId: resumeMeta.userId,
-             resumeId: matchResult.resumeId,
-             jobTitle: matchResult.jobTitle
-           } 
-         });
-
-         const gapEvent: GapAnalysisReadyEventDto = {
-          userId: resumeMeta.userId,
-          resumeId: dto.resumeId,
-          missingSkills: matchResult.missingSkills,
-          targetRole: matchResult.jobTitle,
-          score: matchResult.score,
-        };
-        this.optimizerClient.emit('gap_analysis_ready', gapEvent).subscribe({
-          error: (emitError: any) => {
-            this.logger.error(
-              `Failed to publish gap_analysis_ready for resumeId ${dto.resumeId}: ${emitError?.message || emitError}`,
-            );
-          },
-        });
-      } else {
-        this.logger.warn(
-          `Skipping optimization publish because resume metadata was not found for resumeId: ${dto.resumeId}`,
-        );
+      if (!resumeMeta) {
+        throw new Error(`Resume metadata was not found for resumeId: ${dto.resumeId}`);
       }
+
+      await this.prisma.matchResult.create({
+        data: {
+          score: matchResult.score,
+          matchedSkills: matchResult.matchedSkills,
+          missingSkills: matchResult.missingSkills,
+          summary: matchResult.summary,
+          userId: resumeMeta.userId,
+          resumeId: matchResult.resumeId,
+          jobTitle: matchResult.jobTitle,
+        },
+      });
+
+      const gapEvent: GapAnalysisReadyEventDto = {
+        userId: resumeMeta.userId,
+        resumeId: dto.resumeId,
+        missingSkills: matchResult.missingSkills,
+        targetRole: matchResult.jobTitle,
+        score: matchResult.score,
+      };
+      this.optimizerClient.emit('gap_analysis_ready', gapEvent).subscribe({
+        error: (emitError: any) => {
+          this.logger.error(
+            `Failed to publish gap_analysis_ready for resumeId ${dto.resumeId}: ${emitError?.message || emitError}`,
+          );
+        },
+      });
 
       await this.redis.set(cacheKey, JSON.stringify(matchResult), 'EX', 3600); // cache for 1 hour
       
