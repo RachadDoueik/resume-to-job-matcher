@@ -29,6 +29,6 @@ COPY --from=builder /app/dist/apps/job-scraper ./dist
 RUN npm install --only=production
 
 # Expose the container port
-EXPOSE 3001
+EXPOSE 3002
 
 CMD ["node", "dist/main.js"]

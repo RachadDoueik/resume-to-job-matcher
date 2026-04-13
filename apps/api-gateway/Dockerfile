@@ -34,6 +34,6 @@ RUN npm install --omit=dev
 COPY --from=builder /app/dist/apps/api-gateway ./dist
 
 # Expose the API gateway port
-EXPOSE 3000
+EXPOSE 3003
 
 CMD ["node", "dist/main.js"]

@@ -29,6 +29,6 @@ COPY --from=builder /app/dist/apps/optimizer ./dist
 RUN npm install --only=production
 
 # Expose the container port
-EXPOSE 3003
+EXPOSE 3000
 
 CMD ["node", "dist/main.js"]
