@@ -63,6 +63,20 @@ export class ApiGatewayService implements OnModuleInit {
   async matchResume(dto: ScrapeJobDto, user: AuthUser, resumeId: string) {
     this.logger.log(`Full match pipeline requested by user ${user.email}`);
 
+    const resume = await this.prisma.resume.findFirst({
+      where: {
+        id: resumeId,
+        userId: user.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!resume) {
+      throw new NotFoundException('Resume not found for this user.');
+    }
+
     // Scraper handles scraping then forwards the payload to Matcher over TCP.
     const scrapeAndMatchRequest: ScrapeAndMatchDto = {
       ...dto,
@@ -146,6 +160,7 @@ export class ApiGatewayService implements OnModuleInit {
 
     const latestMatch = await this.prisma.matchResult.findFirst({
       where: {
+        userId: user.id,
         resumeId,
       },
       orderBy: {

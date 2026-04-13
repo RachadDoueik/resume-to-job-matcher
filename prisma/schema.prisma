@@ -35,10 +35,13 @@ model MatchResult {
   matchedSkills String[] // Stored as arrays in PostgreSQL
   missingSkills String[]
   summary       String   @db.Text
+  userId        String
   resumeId      String
   jobTitle      String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+
+  @@index([userId, resumeId, createdAt])
 }
 
 model OptimizationResult {
