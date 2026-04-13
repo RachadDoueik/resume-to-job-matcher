@@ -29,6 +29,6 @@ COPY --from=builder /app/dist/apps/matcher ./dist
 RUN npm install --only=production
 
 # Expose the container port
-EXPOSE 3002
+EXPOSE 3001
 
 CMD ["node", "dist/main.js"]
