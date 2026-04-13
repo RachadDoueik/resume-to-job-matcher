@@ -16,6 +16,7 @@ export class MatcherService {
   private s3Client: S3Client;
   private genAI: GoogleGenerativeAI;
   private s3Bucket: string;
+  private readonly geminiTimeoutMs: number;
 
   constructor(
     private readonly configService: ConfigService,
@@ -39,6 +40,11 @@ export class MatcherService {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!apiKey) this.logger.warn('GEMINI_API_KEY is not defined.');
     this.genAI = new GoogleGenerativeAI(apiKey || 'unconfigured');
+
+    const configuredGeminiTimeoutMs = Number(this.configService.get<string>('GEMINI_TIMEOUT_MS') ?? '30000');
+    this.geminiTimeoutMs = Number.isFinite(configuredGeminiTimeoutMs) && configuredGeminiTimeoutMs > 0
+      ? configuredGeminiTimeoutMs
+      : 30000;
   }
 
   private generateHash(data: object): string {
@@ -51,6 +57,29 @@ export class MatcherService {
       error?.Code === 'NoSuchKey' ||
       error?.$metadata?.httpStatusCode === 404
     );
+  }
+
+  private async generateContentWithTimeout(
+    model: ReturnType<GoogleGenerativeAI['getGenerativeModel']>,
+    prompt: string,
+    operation: string,
+  ) {
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => controller.abort(), this.geminiTimeoutMs);
+
+    try {
+      return await model.generateContent(prompt, { signal: controller.signal });
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        throw new Error(
+          `Gemini request timed out after ${this.geminiTimeoutMs}ms during ${operation}.`,
+        );
+      }
+
+      throw error;
+    } finally {
+      clearTimeout(timeoutHandle);
+    }
   }
 
   private async getResumeTextFromS3(resumeId: string): Promise<string> {
@@ -132,7 +161,7 @@ export class MatcherService {
       Job Description: ${JSON.stringify(dto.jobDescription)}
       Resume: ${resumeText.substring(0, 15000)}`;
 
-      const result = await model.generateContent(prompt);
+      const result = await this.generateContentWithTimeout(model, prompt, 'match analysis');
       const cleanText = result.response.text().replace(/^\s*```json\s*/i, '').replace(/\s*```\s*$/i, '').trim();
       const parsedMatch = JSON.parse(cleanText);
       const rawSummary = typeof parsedMatch.summary === 'string' ? parsedMatch.summary.trim() : '';
